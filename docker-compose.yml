@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    container_name: apexcache_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - wordpress_network
+
+  # Redis Cache Server
+  redis:
+    image: redis:7-alpine
+    container_name: apexcache_redis
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - wordpress_network
+    ports:
+      - "6379:6379"
+
+  # WordPress
+  wordpress:
+    image: wordpress:latest
+    container_name: apexcache_wordpress
+    restart: always
+    ports:
+      - "8080:80"
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - wordpress_data:/var/www/html
+      - ./apex-cache:/var/www/html/wp-content/plugins/apex-cache
+    depends_on:
+      - db
+      - redis
+    networks:
+      - wordpress_network
+
+  # WP-CLI for command line management
+  wpcli:
+    image: wordpress:cli
+    container_name: apexcache_wpcli
+    user: "33:33"
+    volumes:
+      - wordpress_data:/var/www/html
+      - ./apex-cache:/var/www/html/wp-content/plugins/apex-cache
+    depends_on:
+      - wordpress
+      - db
+    networks:
+      - wordpress_network
+    command: tail -f /dev/null
+
+volumes:
+  db_data:
+  redis_data:
+  wordpress_data:
+
+networks:
+  wordpress_network:
+    driver: bridge
